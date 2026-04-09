@@ -1,0 +1,476 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AboutContent {
+  id        String   @id
+  section   String   @unique
+  title     String?
+  content   String?
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model ActivityLog {
+  id        String   @id
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  adminId   String?
+  adminName String?
+  createdAt DateTime @default(now())
+}
+
+model Admin {
+  id        String   @id
+  username  String   @unique
+  password  String
+  name      String?
+  email     String?
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model Category {
+  id          String    @id
+  name        String
+  slug        String    @unique
+  description String?
+  image       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  Product     Product[]
+}
+
+model CustomInquiry {
+  id          String    @id
+  name        String
+  email       String
+  phone       String
+  style       String
+  color       String
+  material    String
+  handleType  String
+  size        String
+  print       String
+  quantity    Int       @default(1)
+  customNotes String?
+  status      String    @default("new")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  customerId  String?
+  Customer    Customer? @relation(fields: [customerId], references: [id])
+}
+
+model Customer {
+  id            String          @id
+  name          String
+  email         String?
+  phone         String
+  address       String?
+  company       String?
+  gstNumber     String?
+  group         String          @default("retail")
+  notes         String?
+  totalOrders   Int             @default(0)
+  totalSpent    Float           @default(0)
+  lastOrderAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  CustomInquiry CustomInquiry[]
+  Enquiry       Enquiry[]
+  FollowUp      FollowUp[]
+  Order         Order[]
+  Quote         Quote[]
+  Invoice       Invoice[]
+}
+
+model Enquiry {
+  id         String    @id
+  name       String
+  email      String
+  phone      String?
+  subject    String?
+  message    String
+  productId  String?
+  status     String    @default("new")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime
+  customerId String?
+  Customer   Customer? @relation(fields: [customerId], references: [id])
+}
+
+model FollowUp {
+  id          String    @id
+  customerId  String
+  type        String
+  title       String
+  description String?
+  dueDate     DateTime
+  status      String    @default("pending")
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  Customer    Customer  @relation(fields: [customerId], references: [id])
+}
+
+model GalleryImage {
+  id          String   @id
+  title       String
+  description String?
+  image       String
+  category    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model Material {
+  id                   String                 @id
+  name                 String
+  category             String
+  unit                 String
+  quantity             Float                  @default(0)
+  minQuantity          Float                  @default(0)
+  unitCost             Float?
+  supplier             String?
+  lastRestocked        DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  MaterialStockHistory MaterialStockHistory[]
+}
+
+model MaterialStockHistory {
+  id         String   @id
+  materialId String
+  type       String
+  quantity   Float
+  reason     String?
+  reference  String?
+  createdAt  DateTime @default(now())
+  Material   Material @relation(fields: [materialId], references: [id])
+}
+
+model Notification {
+  id        String   @id
+  type      String
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Order {
+  id                 String               @id
+  orderNumber        String               @unique
+  customerId         String?
+  customerName       String
+  customerEmail      String?
+  customerPhone      String
+  customerAddress    String?
+  subtotal           Float
+  tax                Float                @default(0)
+  discount           Float                @default(0)
+  total              Float
+  status             String               @default("pending")
+  paymentStatus      String               @default("unpaid")
+  orderDate          DateTime             @default(now())
+  expectedDate       DateTime?
+  shippedDate        DateTime?
+  deliveredDate      DateTime?
+  trackingNumber     String?
+  shippingMethod     String?
+  notes              String?
+  internalNotes      String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime
+  Customer           Customer?            @relation(fields: [customerId], references: [id])
+  OrderItem          OrderItem[]
+  OrderStatusHistory OrderStatusHistory[]
+  Production         Production?
+  Invoice            Invoice?
+}
+
+model OrderItem {
+  id          String   @id
+  orderId     String
+  productId   String?
+  productName String
+  quantity    Int
+  price       Float
+  total       Float
+  isCustom    Boolean  @default(false)
+  customSpecs String?
+  createdAt   DateTime @default(now())
+  Product     Product? @relation(fields: [productId], references: [id])
+  Order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model OrderStatusHistory {
+  id        String   @id
+  orderId   String
+  status    String
+  notes     String?
+  createdAt DateTime @default(now())
+  Order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Product {
+  id                 String         @id
+  name               String
+  slug               String         @unique
+  description        String
+  price              Float?
+  image              String
+  images             String?
+  material           String?
+  bagStyle           String?
+  gsm                String?
+  bagSize            String?
+  handleType         String?
+  bagColor           String?
+  printType          String?
+  capacity           String?
+  usageApplication   String?
+  usage              String?
+  bagShape           String?
+  sideGusset         String?
+  finishing          String?
+  productPattern     String?
+  productColor       String?
+  productMaterial    String?         // Product material description
+  minOrderQuantity   Int            @default(1000)
+  productionCapacity String?
+  deliveryTime       String?
+  packagingDetails   String?
+  stock              Int            @default(0)
+  lowStockAlert      Int            @default(10)
+  isOnSale           Boolean        @default(false)
+  discountPercent    Int            @default(0)
+  originalPrice      Float?
+  categoryId         String?
+  isActive           Boolean        @default(true)
+  isFeatured         Boolean        @default(false)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime
+  OrderItem          OrderItem[]
+  Category           Category?      @relation(fields: [categoryId], references: [id])
+  StockHistory       StockHistory[]
+  InvoiceItem        InvoiceItem[]
+}
+
+model Production {
+  id                  String                @id
+  orderId             String                @unique
+  stage               String                @default("pending")
+  progress            Int                   @default(0)
+  assignedTo          String?
+  startDate           DateTime?
+  estimatedCompletion DateTime?
+  actualCompletion    DateTime?
+  notes               String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime
+  Order               Order                 @relation(fields: [orderId], references: [id])
+  ProductionStageNote ProductionStageNote[]
+}
+
+model ProductionStageNote {
+  id           String     @id
+  productionId String
+  stage        String
+  note         String
+  addedBy      String?
+  createdAt    DateTime   @default(now())
+  Production   Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+}
+
+model Quote {
+  id                 String      @id
+  quoteNumber        String      @unique
+  customerId         String?
+  customerName       String
+  customerEmail      String?
+  customerPhone      String
+  subtotal           Float
+  tax                Float       @default(0)
+  discount           Float       @default(0)
+  total              Float
+  validUntil         DateTime?
+  status             String      @default("draft")
+  notes              String?
+  terms              String?
+  templateId         String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime
+  convertedToOrderId String?
+  Customer           Customer?   @relation(fields: [customerId], references: [id])
+  QuoteItem          QuoteItem[]
+}
+
+model QuoteItem {
+  id          String   @id
+  quoteId     String
+  productId   String?
+  productName String
+  quantity    Int
+  price       Float
+  total       Float
+  isCustom    Boolean  @default(false)
+  customSpecs String?
+  createdAt   DateTime @default(now())
+  Quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+model QuoteTemplate {
+  id          String   @id
+  name        String
+  description String?
+  items       String
+  terms       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model SiteSetting {
+  id          String   @id
+  companyName String   @default("Madhav World Bags Industry")
+  companyLogo String?
+  address     String?
+  phone       String?
+  email       String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+// Admin-configurable customizer options
+model CustomizerOption {
+  id          String   @id
+  category    String   // 'style', 'color', 'material', 'size', 'handle', 'print'
+  name        String
+  value       String   // hex code for color, or identifier
+  image       String?  // optional image for styles
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+// Customizer configuration - which steps are enabled
+model CustomizerConfig {
+  id          String   @id
+  step        String   @unique // 'style', 'color', 'material', 'size', 'handle', 'print'
+  isEnabled   Boolean  @default(true)
+  isRequired  Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model StockHistory {
+  id        String   @id
+  productId String
+  type      String
+  quantity  Int
+  reason    String?
+  reference String?
+  createdAt DateTime @default(now())
+  Product   Product  @relation(fields: [productId], references: [id])
+}
+
+// Invoice/Bill with GST
+model Invoice {
+  id               String        @id
+  invoiceNumber    String        @unique
+  orderId          String?       @unique
+  customerId       String?
+  
+  // Customer Details
+  customerName     String
+  customerEmail    String?
+  customerPhone    String
+  customerAddress  String?
+  customerGstin    String?       // Customer GST number
+  
+  // Company Details
+  companyName      String
+  companyAddress   String
+  companyPhone     String
+  companyEmail     String?
+  companyGstin     String?       // Company GST number
+  companyLogo      String?
+  
+  // Invoice Details
+  invoiceDate      DateTime      @default(now())
+  dueDate          DateTime?
+  placeOfSupply    String?       // For GST
+  
+  // Amounts
+  subtotal         Float
+  discount         Float         @default(0)
+  cgstRate         Float         @default(0)    // Central GST rate %
+  sgstRate         Float         @default(0)    // State GST rate %
+  igstRate         Float         @default(0)    // Integrated GST rate %
+  cgstAmount       Float         @default(0)
+  sgstAmount       Float         @default(0)
+  igstAmount       Float         @default(0)
+  totalTax         Float         @default(0)
+  roundOff         Float         @default(0)
+  total            Float
+  amountInWords    String?
+  
+  // Bank Details
+  bankName         String?
+  bankAccount      String?
+  bankIfsc         String?
+  bankBranch       String?
+  
+  // Additional
+  notes            String?
+  terms            String?
+  signature        String?       // Signature image
+  status           String        @default("draft") // draft, sent, paid, cancelled
+  
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime
+  
+  Order            Order?        @relation(fields: [orderId], references: [id])
+  Customer         Customer?     @relation(fields: [customerId], references: [id])
+  InvoiceItem      InvoiceItem[]
+}
+
+model InvoiceItem {
+  id              String   @id
+  invoiceId       String
+  productId       String?
+  productName     String
+  description     String?
+  hsnCode         String?  // HSN/SAC code for GST
+  quantity        Int
+  unit            String   @default("PCS")
+  rate            Float
+  discount        Float    @default(0)
+  taxableValue    Float
+  cgstRate        Float    @default(0)
+  sgstRate        Float    @default(0)
+  igstRate        Float    @default(0)
+  cgstAmount      Float    @default(0)
+  sgstAmount      Float    @default(0)
+  igstAmount      Float    @default(0)
+  total           Float
+  createdAt       DateTime @default(now())
+  
+  Invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  Product         Product? @relation(fields: [productId], references: [id])
+}

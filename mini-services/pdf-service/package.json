@@ -1,0 +1,7 @@
+{
+  "name": "pdf-service",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "/usr/bin/python3.13 index.py"
+  }
+}
