@@ -78,6 +78,26 @@ export default function AdminLayout({
   const navItems: NavItem[] = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { 
+      name: 'Raw Materials', 
+      icon: Package,
+      children: [
+        { name: 'All Materials', href: '/admin/raw-materials' },
+        { name: 'Add Material', href: '/admin/raw-materials/new' },
+        { name: 'Categories', href: '/admin/raw-materials/categories' },
+        { name: 'Suppliers', href: '/admin/raw-materials/suppliers' },
+      ]
+    },
+    { 
+      name: 'Production', 
+      icon: FactoryIcon,
+      children: [
+        { name: 'All Entries', href: '/admin/production' },
+        { name: 'New Production', href: '/admin/production/new' },
+        { name: 'Calendar', href: '/admin/production/calendar' },
+      ]
+    },
+    { name: 'Finished Goods', href: '/admin/finished-goods', icon: Box },
+    { 
       name: 'Orders', 
       icon: ShoppingCart,
       children: [
@@ -104,33 +124,6 @@ export default function AdminLayout({
       children: [
         { name: 'All Customers', href: '/admin/customers' },
         { name: 'Follow-ups', href: '/admin/customers/follow-ups' },
-      ]
-    },
-    { 
-      name: 'Production', 
-      icon: FactoryIcon,
-      children: [
-        { name: 'Pipeline', href: '/admin/production' },
-        { name: 'Calendar', href: '/admin/production/calendar' },
-      ]
-    },
-    { 
-      name: 'Inventory', 
-      icon: Box,
-      children: [
-        { name: 'Stock', href: '/admin/inventory' },
-        { name: 'Materials', href: '/admin/inventory/materials' },
-        { name: 'History', href: '/admin/inventory/history' },
-      ]
-    },
-    { 
-      name: 'Reports', 
-      icon: BarChart3,
-      children: [
-        { name: 'Sales', href: '/admin/reports/sales' },
-        { name: 'Products', href: '/admin/reports/products' },
-        { name: 'Customers', href: '/admin/reports/customers' },
-        { name: 'Inquiries', href: '/admin/reports/inquiries' },
       ]
     },
     { 

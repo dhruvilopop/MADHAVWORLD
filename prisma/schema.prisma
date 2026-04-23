@@ -7,6 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============ EXISTING MODELS ============
+
 model AboutContent {
   id        String   @id
   section   String   @unique
@@ -133,32 +135,6 @@ model GalleryImage {
   updatedAt   DateTime
 }
 
-model Material {
-  id                   String                 @id
-  name                 String
-  category             String
-  unit                 String
-  quantity             Float                  @default(0)
-  minQuantity          Float                  @default(0)
-  unitCost             Float?
-  supplier             String?
-  lastRestocked        DateTime?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime
-  MaterialStockHistory MaterialStockHistory[]
-}
-
-model MaterialStockHistory {
-  id         String   @id
-  materialId String
-  type       String
-  quantity   Float
-  reason     String?
-  reference  String?
-  createdAt  DateTime @default(now())
-  Material   Material @relation(fields: [materialId], references: [id])
-}
-
 model Notification {
   id        String   @id
   type      String
@@ -168,6 +144,400 @@ model Notification {
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 }
+
+model SiteSetting {
+  id          String   @id
+  companyName String   @default("Madhav World Bags Industry")
+  companyLogo String?
+  address     String?
+  phone       String?
+  email       String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model CustomizerOption {
+  id        String   @id
+  category  String
+  name      String
+  value     String
+  image     String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model CustomizerConfig {
+  id         String   @id
+  step       String   @unique
+  isEnabled  Boolean  @default(true)
+  isRequired Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+}
+
+// ============ RAW MATERIALS MODULE ============
+
+model RawMaterial {
+  id                String                     @id
+  name              String
+  categoryId        String?
+  category          RawMaterialCategory?       @relation(fields: [categoryId], references: [id])
+  
+  // Specifications
+  size              Float?
+  width             Float?
+  gsm               Float?
+  weightPerBag      Float?
+  bagsPerKg         Float?
+  thickness         Float?
+  
+  // Stock
+  unit              String                     @default("kg")
+  currentStock      Float                      @default(0)
+  minStockLevel     Float                      @default(0)
+  maxStockLevel     Float?
+  reorderPoint      Float?
+  reorderQuantity   Float?
+  
+  // Cost
+  unitCost          Float                      @default(0)
+  lastPurchaseCost  Float?
+  
+  // Supplier
+  supplierId        String?
+  supplier          Supplier?                  @relation(fields: [supplierId], references: [id])
+  
+  // Location
+  warehouseLocation String?
+  batchNumber       String?
+  
+  // Tracking
+  barcode           String?                    @unique
+  qrCode            String?                    @unique
+  image             String?
+  description       String?
+  
+  // Status
+  isActive          Boolean                    @default(true)
+  lastRestocked     DateTime?
+  
+  // Relations
+  stockMovements    RawMaterialStockMovement[]
+  productionItems   ProductionRawMaterial[]
+  
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  
+  @@index([categoryId])
+  @@index([supplierId])
+}
+
+model RawMaterialCategory {
+  id          String        @id
+  name        String        @unique
+  slug        String        @unique
+  description String?
+  color       String?
+  icon        String?
+  materials   RawMaterial[]
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model RawMaterialStockMovement {
+  id             String        @id
+  rawMaterialId  String
+  rawMaterial    RawMaterial   @relation(fields: [rawMaterialId], references: [id])
+  
+  type           String
+  quantity       Float
+  previousStock  Float
+  newStock       Float
+  reason         String?
+  reference      String?
+  
+  unitCost       Float?
+  totalCost      Float?
+  
+  userId         String?
+  notes          String?
+  
+  createdAt      DateTime      @default(now())
+  
+  @@index([rawMaterialId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============ SUPPLIER MODULE ============
+
+model Supplier {
+  id            String        @id
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String
+  address       String?
+  gstin         String?
+  panNumber     String?
+  
+  bankName      String?
+  accountNumber String?
+  ifscCode      String?
+  
+  creditDays    Int?
+  creditLimit   Float?
+  
+  isActive      Boolean       @default(true)
+  rating        Int?
+  notes         String?
+  
+  materials     RawMaterial[]
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  @@index([isActive])
+}
+
+// ============ PRODUCTION MODULE ============
+
+model ProductionEntry {
+  id                String                   @id
+  productionNumber  String                   @unique
+  
+  productionDate    DateTime                 @default(now())
+  startTime         DateTime?
+  endTime           DateTime?
+  
+  productName       String
+  productId         String?
+  
+  size              Float?
+  width             Float?
+  height            Float?
+  gsm               Float?
+  bagsPerKg         Float?
+  color             String?
+  design            String?
+  
+  quantityProduced  Int                      @default(0)
+  quantityRejected  Int                      @default(0)
+  quantityPassed    Int                      @default(0)
+  
+  materialCost      Float                    @default(0)
+  laborCost         Float                    @default(0)
+  overheadCost      Float                    @default(0)
+  totalCost         Float                    @default(0)
+  costPerPiece      Float                    @default(0)
+  
+  workerId          String?
+  workerName        String?
+  machineId         String?
+  machineName       String?
+  batchNumber       String?
+  shift             String?
+  
+  qualityStatus     String                   @default("pending")
+  qualityNotes      String?
+  inspectedBy       String?
+  inspectedAt       DateTime?
+  
+  wasteQuantity     Float                    @default(0)
+  wasteReason       String?
+  
+  status            String                   @default("planned")
+  completionPercent Int                      @default(0)
+  
+  rawMaterials      ProductionRawMaterial[]
+  qualityChecks     QualityCheck[]
+  
+  notes             String?
+  images            String?
+  
+  createdBy         String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  
+  @@index([productionDate])
+  @@index([status])
+}
+
+model ProductionRawMaterial {
+  id              String          @id
+  productionId    String
+  production      ProductionEntry @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  
+  rawMaterialId   String?
+  rawMaterial     RawMaterial?    @relation(fields: [rawMaterialId], references: [id])
+  
+  materialName    String
+  quantityPlanned Float
+  quantityUsed    Float           @default(0)
+  quantityWasted  Float           @default(0)
+  unitCost        Float           @default(0)
+  totalCost       Float           @default(0)
+  
+  notes           String?
+  createdAt       DateTime        @default(now())
+}
+
+model QualityCheck {
+  id              String          @id
+  productionId    String
+  production      ProductionEntry @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  
+  checkType       String
+  parameter       String
+  expectedValue   String?
+  actualValue     String?
+  status          String          @default("pending")
+  notes           String?
+  
+  checkedBy       String?
+  checkedAt       DateTime?
+  
+  createdAt       DateTime        @default(now())
+  
+  @@index([productionId])
+}
+
+// ============ FINISHED GOODS MODULE ============
+
+model FinishedGood {
+  id                String                    @id
+  sku               String                    @unique
+  name              String
+  slug              String                    @unique
+  
+  categoryId        String?
+  
+  size              String?
+  width             Float?
+  height            Float?
+  depth             Float?
+  gsm               Float?
+  color             String?
+  material          String?
+  weight            Float?
+  
+  quantityInStock   Int                       @default(0)
+  reservedQuantity  Int                       @default(0)
+  availableQuantity Int                       @default(0)
+  
+  costPrice         Float                     @default(0)
+  sellingPrice      Float                     @default(0)
+  mrp               Float?
+  wholesalePrice    Float?
+  
+  bagsPerKg         Float?
+  productionTime    Float?
+  
+  images            String?
+  thumbnail         String?
+  
+  isActive          Boolean                   @default(true)
+  isFeatured        Boolean                   @default(false)
+  
+  barcode           String?                   @unique
+  description       String?
+  
+  stockMovements    FinishedGoodStockMovement[]
+  
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  
+  @@index([isActive])
+}
+
+model FinishedGoodStockMovement {
+  id              String   @id
+  finishedGoodId  String
+  finishedGood    FinishedGood @relation(fields: [finishedGoodId], references: [id])
+  
+  type            String
+  quantity        Int
+  previousStock   Int
+  newStock        Int
+  reason          String?
+  reference       String?
+  
+  productionId    String?
+  orderId         String?
+  invoiceId       String?
+  
+  userId          String?
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([finishedGoodId])
+  @@index([type])
+}
+
+// ============ PRODUCTS ============
+
+model Product {
+  id                 String         @id
+  name               String
+  slug               String         @unique
+  description        String
+  price              Float?
+  image              String
+  images             String?
+  material           String?
+  bagStyle           String?
+  gsm                String?
+  bagSize            String?
+  handleType         String?
+  bagColor           String?
+  printType          String?
+  capacity           String?
+  usageApplication   String?
+  usage              String?
+  bagShape           String?
+  sideGusset         String?
+  finishing          String?
+  productPattern     String?
+  productColor       String?
+  productMaterial    String?
+  minOrderQuantity   Int            @default(1000)
+  productionCapacity String?
+  deliveryTime       String?
+  packagingDetails   String?
+  stock              Int            @default(0)
+  lowStockAlert      Int            @default(10)
+  isOnSale           Boolean        @default(false)
+  discountPercent    Int            @default(0)
+  originalPrice      Float?
+  categoryId         String?
+  isActive           Boolean        @default(true)
+  isFeatured         Boolean        @default(false)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime
+  OrderItem          OrderItem[]
+  Category           Category?      @relation(fields: [categoryId], references: [id])
+  StockHistory       StockHistory[]
+  InvoiceItem        InvoiceItem[]
+}
+
+model StockHistory {
+  id        String   @id
+  productId String
+  type      String
+  quantity  Int
+  reason    String?
+  reference String?
+  createdAt DateTime @default(now())
+  Product   Product  @relation(fields: [productId], references: [id])
+}
+
+// ============ ORDERS MODULE ============
 
 model Order {
   id                 String               @id
@@ -224,50 +594,6 @@ model OrderStatusHistory {
   Order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
-model Product {
-  id                 String         @id
-  name               String
-  slug               String         @unique
-  description        String
-  price              Float?
-  image              String
-  images             String?
-  material           String?
-  bagStyle           String?
-  gsm                String?
-  bagSize            String?
-  handleType         String?
-  bagColor           String?
-  printType          String?
-  capacity           String?
-  usageApplication   String?
-  usage              String?
-  bagShape           String?
-  sideGusset         String?
-  finishing          String?
-  productPattern     String?
-  productColor       String?
-  productMaterial    String?         // Product material description
-  minOrderQuantity   Int            @default(1000)
-  productionCapacity String?
-  deliveryTime       String?
-  packagingDetails   String?
-  stock              Int            @default(0)
-  lowStockAlert      Int            @default(10)
-  isOnSale           Boolean        @default(false)
-  discountPercent    Int            @default(0)
-  originalPrice      Float?
-  categoryId         String?
-  isActive           Boolean        @default(true)
-  isFeatured         Boolean        @default(false)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime
-  OrderItem          OrderItem[]
-  Category           Category?      @relation(fields: [categoryId], references: [id])
-  StockHistory       StockHistory[]
-  InvoiceItem        InvoiceItem[]
-}
-
 model Production {
   id                  String                @id
   orderId             String                @unique
@@ -294,6 +620,8 @@ model ProductionStageNote {
   Production   Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
 }
 
+// ============ QUOTATIONS MODULE ============
+
 model Quote {
   id                 String      @id
   quoteNumber        String      @unique
@@ -301,34 +629,66 @@ model Quote {
   customerName       String
   customerEmail      String?
   customerPhone      String
-  subtotal           Float
-  tax                Float       @default(0)
+  customerAddress    String?
+  customerGstin      String?
+  
+  subtotal           Float       @default(0)
   discount           Float       @default(0)
-  total              Float
+  taxRate            Float       @default(18)
+  taxAmount          Float       @default(0)
+  shippingCharges    Float       @default(0)
+  total              Float       @default(0)
+  
+  quoteDate          DateTime    @default(now())
   validUntil         DateTime?
-  status             String      @default("draft")
-  notes              String?
+  
   terms              String?
-  templateId         String?
+  notes              String?
+  internalNotes      String?
+  
+  status             String      @default("draft")
+  convertedToOrderId String?
+  
+  stockVerified      Boolean     @default(false)
+  stockCheckedAt     DateTime?
+  outOfStockItems    String?
+  
+  pdfUrl             String?
+  followUpDate       DateTime?
+  
+  createdBy          String?
   createdAt          DateTime    @default(now())
   updatedAt          DateTime
-  convertedToOrderId String?
+  
   Customer           Customer?   @relation(fields: [customerId], references: [id])
   QuoteItem          QuoteItem[]
+  
+  @@index([status])
+  @@index([customerId])
 }
 
 model QuoteItem {
-  id          String   @id
-  quoteId     String
-  productId   String?
-  productName String
-  quantity    Int
-  price       Float
-  total       Float
-  isCustom    Boolean  @default(false)
-  customSpecs String?
-  createdAt   DateTime @default(now())
-  Quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  id              String   @id
+  quoteId         String
+  productId       String?
+  productName     String
+  productSku      String?
+  description     String?
+  
+  quantity        Int
+  unitPrice       Float     @default(0)
+  discount        Float    @default(0)
+  taxRate         Float    @default(18)
+  taxAmount       Float    @default(0)
+  total           Float    @default(0)
+  
+  stockAvailable  Int?
+  
+  createdAt       DateTime @default(now())
+  
+  Quote           Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  
+  @@index([quoteId])
 }
 
 model QuoteTemplate {
@@ -342,86 +702,36 @@ model QuoteTemplate {
   updatedAt   DateTime
 }
 
-model SiteSetting {
-  id          String   @id
-  companyName String   @default("Madhav World Bags Industry")
-  companyLogo String?
-  address     String?
-  phone       String?
-  email       String?
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
-}
+// ============ INVOICES MODULE ============
 
-// Admin-configurable customizer options
-model CustomizerOption {
-  id          String   @id
-  category    String   // 'style', 'color', 'material', 'size', 'handle', 'print'
-  name        String
-  value       String   // hex code for color, or identifier
-  image       String?  // optional image for styles
-  isActive    Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
-}
-
-// Customizer configuration - which steps are enabled
-model CustomizerConfig {
-  id          String   @id
-  step        String   @unique // 'style', 'color', 'material', 'size', 'handle', 'print'
-  isEnabled   Boolean  @default(true)
-  isRequired  Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
-}
-
-model StockHistory {
-  id        String   @id
-  productId String
-  type      String
-  quantity  Int
-  reason    String?
-  reference String?
-  createdAt DateTime @default(now())
-  Product   Product  @relation(fields: [productId], references: [id])
-}
-
-// Invoice/Bill with GST
 model Invoice {
   id               String        @id
   invoiceNumber    String        @unique
   orderId          String?       @unique
   customerId       String?
   
-  // Customer Details
   customerName     String
   customerEmail    String?
   customerPhone    String
   customerAddress  String?
-  customerGstin    String?       // Customer GST number
+  customerGstin    String?
   
-  // Company Details
   companyName      String
   companyAddress   String
   companyPhone     String
   companyEmail     String?
-  companyGstin     String?       // Company GST number
+  companyGstin     String?
   companyLogo      String?
   
-  // Invoice Details
   invoiceDate      DateTime      @default(now())
   dueDate          DateTime?
-  placeOfSupply    String?       // For GST
+  placeOfSupply    String?
   
-  // Amounts
   subtotal         Float
   discount         Float         @default(0)
-  cgstRate         Float         @default(0)    // Central GST rate %
-  sgstRate         Float         @default(0)    // State GST rate %
-  igstRate         Float         @default(0)    // Integrated GST rate %
+  cgstRate         Float         @default(0)
+  sgstRate         Float         @default(0)
+  igstRate         Float         @default(0)
   cgstAmount       Float         @default(0)
   sgstAmount       Float         @default(0)
   igstAmount       Float         @default(0)
@@ -430,24 +740,44 @@ model Invoice {
   total            Float
   amountInWords    String?
   
-  // Bank Details
+  paymentStatus    String        @default("pending")
+  paymentMethod    String?
+  paidAmount       Float         @default(0)
+  pendingAmount    Float         @default(0)
+  
+  deliveryStatus   String        @default("pending")
+  deliveryDate     DateTime?
+  trackingNumber   String?
+  courierName      String?
+  
   bankName         String?
   bankAccount      String?
   bankIfsc         String?
   bankBranch       String?
   
-  // Additional
   notes            String?
   terms            String?
-  signature        String?       // Signature image
-  status           String        @default("draft") // draft, sent, paid, cancelled
+  signature        String?
+  status           String        @default("draft")
   
+  eInvoiceNumber   String?
+  eInvoiceUrl      String?
+  irn              String?
+  
+  pdfUrl           String?
+  
+  createdBy        String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime
   
   Order            Order?        @relation(fields: [orderId], references: [id])
   Customer         Customer?     @relation(fields: [customerId], references: [id])
   InvoiceItem      InvoiceItem[]
+  PaymentTransaction PaymentTransaction[]
+  
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([invoiceDate])
 }
 
 model InvoiceItem {
@@ -456,7 +786,7 @@ model InvoiceItem {
   productId       String?
   productName     String
   description     String?
-  hsnCode         String?  // HSN/SAC code for GST
+  hsnCode         String?
   quantity        Int
   unit            String   @default("PCS")
   rate            Float
@@ -469,8 +799,59 @@ model InvoiceItem {
   sgstAmount      Float    @default(0)
   igstAmount      Float    @default(0)
   total           Float
+  
+  stockDeducted   Boolean  @default(false)
+  
   createdAt       DateTime @default(now())
   
   Invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   Product         Product? @relation(fields: [productId], references: [id])
+  
+  @@index([invoiceId])
+}
+
+model PaymentTransaction {
+  id              String   @id
+  invoiceId       String
+  amount          Float
+  paymentMethod   String
+  paymentDate     DateTime @default(now())
+  transactionId   String?
+  referenceNumber String?
+  bankName        String?
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  
+  Invoice         Invoice  @relation(fields: [invoiceId], references: [id])
+  
+  @@index([invoiceId])
+}
+
+// ============ LEGACY MATERIAL ============
+
+model Material {
+  id                   String                 @id
+  name                 String
+  category             String
+  unit                 String
+  quantity             Float                  @default(0)
+  minQuantity          Float                  @default(0)
+  unitCost             Float?
+  supplier             String?
+  lastRestocked        DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  MaterialStockHistory MaterialStockHistory[]
+}
+
+model MaterialStockHistory {
+  id         String   @id
+  materialId String
+  type       String
+  quantity   Float
+  reason     String?
+  reference  String?
+  createdAt  DateTime @default(now())
+  Material   Material @relation(fields: [materialId], references: [id])
 }
