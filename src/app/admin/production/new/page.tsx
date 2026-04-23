@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { 
-  Factory, Save, X, ArrowLeft, Plus, Trash2, Calculator
+  Factory, Save, X, ArrowLeft, Plus, Trash2, Calculator, Database, Loader2
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -18,6 +19,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 interface RawMaterial {
   id: string
@@ -26,6 +35,9 @@ interface RawMaterial {
   currentStock: number
   unitCost: number
   bagsPerKg?: number | null
+  gsm?: number | null
+  size?: number | null
+  width?: number | null
 }
 
 interface MaterialItem {
@@ -36,10 +48,22 @@ interface MaterialItem {
   notes: string
 }
 
+interface CostingEntry {
+  id: string
+  sizeWidth: number
+  sizeHeight: number
+  gsm: number
+  weightPerBag: number
+  bagsPerKg: number
+  costPerBag: number | null
+  sellingPrice: number | null
+}
+
 export default function NewProductionPage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([])
+  const [costingTable, setCostingTable] = useState<CostingEntry[]>([])
   const [materialItems, setMaterialItems] = useState<MaterialItem[]>([{
     rawMaterialId: '',
     quantityPlanned: '',
@@ -49,6 +73,9 @@ export default function NewProductionPage() {
   }])
   const [calculatedCost, setCalculatedCost] = useState({
     materialCost: 0,
+    laborCost: 0,
+    overheadCost: 0,
+    totalCost: 0,
     costPerPiece: 0
   })
   const [formData, setFormData] = useState({
@@ -72,10 +99,12 @@ export default function NewProductionPage() {
     wasteQuantity: '0',
     wasteReason: '',
     notes: '',
+    status: 'completed'
   })
 
   useEffect(() => {
     fetchRawMaterials()
+    fetchCostingTable()
   }, [])
 
   const fetchRawMaterials = async () => {
@@ -87,6 +116,33 @@ export default function NewProductionPage() {
       console.error('Error fetching raw materials:', error)
     }
   }
+
+  const fetchCostingTable = async () => {
+    try {
+      const res = await fetch('/api/costing-table')
+      const data = await res.json()
+      setCostingTable(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Error fetching costing table:', error)
+    }
+  }
+
+  // Find matching costing entry when width, height, gsm are set
+  useEffect(() => {
+    if (formData.width && formData.height && formData.gsm) {
+      const matching = costingTable.find(
+        c => c.sizeWidth === parseFloat(formData.width) && 
+             c.sizeHeight === parseFloat(formData.height) && 
+             c.gsm === parseFloat(formData.gsm)
+      )
+      if (matching) {
+        setFormData(prev => ({
+          ...prev,
+          bagsPerKg: matching.bagsPerKg.toString()
+        }))
+      }
+    }
+  }, [formData.width, formData.height, formData.gsm, costingTable])
 
   // Calculate costs when materials or quantity change
   useEffect(() => {
@@ -106,8 +162,45 @@ export default function NewProductionPage() {
     const quantityProduced = parseInt(formData.quantityProduced) || 1
     const costPerPiece = totalCost / quantityProduced
     
-    setCalculatedCost({ materialCost, costPerPiece })
+    setCalculatedCost({ materialCost, laborCost, overheadCost, totalCost, costPerPiece })
   }, [materialItems, formData.quantityProduced, formData.laborCost, formData.overheadCost, rawMaterials])
+
+  // Auto-calculate material requirement based on costing table
+  const autoCalculateMaterial = () => {
+    if (!formData.quantityProduced || !formData.bagsPerKg) {
+      alert('Please enter quantity and bags per KG first')
+      return
+    }
+    
+    const quantity = parseInt(formData.quantityProduced)
+    const bagsPerKg = parseFloat(formData.bagsPerKg)
+    const materialNeeded = quantity / bagsPerKg // KG of material needed
+    
+    // Find matching raw material
+    const matchingMaterial = rawMaterials.find(m => 
+      m.gsm === parseFloat(formData.gsm) || 
+      (m.width === parseFloat(formData.width) && m.size === parseFloat(formData.height))
+    )
+    
+    if (matchingMaterial) {
+      setMaterialItems([{
+        rawMaterialId: matchingMaterial.id,
+        quantityPlanned: materialNeeded.toFixed(2),
+        quantityUsed: materialNeeded.toFixed(2),
+        quantityWasted: '0',
+        notes: `Auto-calculated: ${quantity} bags / ${bagsPerKg} bags per KG = ${materialNeeded.toFixed(2)} KG`
+      }])
+    } else if (rawMaterials.length > 0) {
+      // Use first available raw material as default
+      setMaterialItems([{
+        rawMaterialId: rawMaterials[0].id,
+        quantityPlanned: materialNeeded.toFixed(2),
+        quantityUsed: materialNeeded.toFixed(2),
+        quantityWasted: '0',
+        notes: `Auto-calculated: ${quantity} bags / ${bagsPerKg} bags per KG = ${materialNeeded.toFixed(2)} KG`
+      }])
+    }
+  }
 
   const handleFormChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -165,8 +258,13 @@ export default function NewProductionPage() {
     }
   }
 
+  // Get unique values for quick select
+  const uniqueWidths = [...new Set(costingTable.map(c => c.sizeWidth))].sort((a, b) => a - b)
+  const uniqueHeights = [...new Set(costingTable.map(c => c.sizeHeight))].sort((a, b) => a - b)
+  const uniqueGsms = [...new Set(costingTable.map(c => c.gsm))].sort((a, b) => a - b)
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -179,6 +277,57 @@ export default function NewProductionPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Quick Costing Reference */}
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-amber-700">
+              <Database className="w-5 h-5" />
+              Costing Table Reference
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-amber-200">
+                    <TableHead className="text-amber-700">Width (inch)</TableHead>
+                    <TableHead className="text-amber-700">Height (inch)</TableHead>
+                    <TableHead className="text-amber-700">GSM</TableHead>
+                    <TableHead className="text-amber-700">Weight/Bag (gm)</TableHead>
+                    <TableHead className="text-amber-700">Bags/KG</TableHead>
+                    <TableHead className="text-amber-700">Cost/Bag</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {costingTable.slice(0, 6).map((entry) => (
+                    <TableRow key={entry.id} className="border-amber-100 hover:bg-amber-100/50 cursor-pointer"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          width: entry.sizeWidth.toString(),
+                          height: entry.sizeHeight.toString(),
+                          gsm: entry.gsm.toString(),
+                          bagsPerKg: entry.bagsPerKg.toString()
+                        }))
+                      }}
+                    >
+                      <TableCell className="font-medium">{entry.sizeWidth}</TableCell>
+                      <TableCell>{entry.sizeHeight}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-amber-100">{entry.gsm}</Badge>
+                      </TableCell>
+                      <TableCell>{entry.weightPerBag} gm</TableCell>
+                      <TableCell className="font-mono">{entry.bagsPerKg.toFixed(2)}</TableCell>
+                      <TableCell>{entry.costPerBag ? `₹${entry.costPerBag}` : '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-xs text-amber-600 mt-2">Click on a row to auto-fill the product specifications</p>
+          </CardContent>
+        </Card>
+
         {/* Product Info */}
         <Card className="border-0 shadow-sm">
           <CardHeader>
@@ -187,14 +336,14 @@ export default function NewProductionPage() {
               Product Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="productName">Product Name *</Label>
               <Input
                 id="productName"
                 value={formData.productName}
                 onChange={(e) => handleFormChange('productName', e.target.value)}
-                placeholder="e.g., Premium Leather Handbag"
+                placeholder="e.g., LDPE Bag 10x14"
                 required
               />
             </div>
@@ -209,53 +358,98 @@ export default function NewProductionPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="size">Size</Label>
-              <Input
-                id="size"
-                type="number"
-                step="0.01"
-                value={formData.size}
-                onChange={(e) => handleFormChange('size', e.target.value)}
-              />
+              <Label htmlFor="status">Status</Label>
+              <Select value={formData.status} onValueChange={(v) => handleFormChange('status', v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="planned">Planned</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Quick Select for Width, Height, GSM */}
+            <div className="space-y-2">
+              <Label htmlFor="width">Width (inch)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="width"
+                  type="number"
+                  step="0.1"
+                  value={formData.width}
+                  onChange={(e) => handleFormChange('width', e.target.value)}
+                  className="flex-1"
+                />
+                <Select onValueChange={(v) => handleFormChange('width', v)}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue placeholder="Quick" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uniqueWidths.map(w => (
+                      <SelectItem key={w} value={w.toString()}>{w}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="width">Width</Label>
-              <Input
-                id="width"
-                type="number"
-                step="0.01"
-                value={formData.width}
-                onChange={(e) => handleFormChange('width', e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="height">Height</Label>
-              <Input
-                id="height"
-                type="number"
-                step="0.01"
-                value={formData.height}
-                onChange={(e) => handleFormChange('height', e.target.value)}
-              />
+              <Label htmlFor="height">Height (inch)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="height"
+                  type="number"
+                  step="0.1"
+                  value={formData.height}
+                  onChange={(e) => handleFormChange('height', e.target.value)}
+                  className="flex-1"
+                />
+                <Select onValueChange={(v) => handleFormChange('height', v)}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue placeholder="Quick" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uniqueHeights.map(h => (
+                      <SelectItem key={h} value={h.toString()}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="gsm">GSM</Label>
-              <Input
-                id="gsm"
-                type="number"
-                step="0.1"
-                value={formData.gsm}
-                onChange={(e) => handleFormChange('gsm', e.target.value)}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="gsm"
+                  type="number"
+                  step="1"
+                  value={formData.gsm}
+                  onChange={(e) => handleFormChange('gsm', e.target.value)}
+                  className="flex-1"
+                />
+                <Select onValueChange={(v) => handleFormChange('gsm', v)}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue placeholder="Quick" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uniqueGsms.map(g => (
+                      <SelectItem key={g} value={g.toString()}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="bagsPerKg">Bags Per Kg</Label>
               <Input
                 id="bagsPerKg"
                 type="number"
-                step="0.1"
+                step="0.01"
                 value={formData.bagsPerKg}
                 onChange={(e) => handleFormChange('bagsPerKg', e.target.value)}
+                className="bg-amber-50"
               />
             </div>
             <div className="space-y-2">
@@ -285,18 +479,30 @@ export default function NewProductionPage() {
                 <Calculator className="w-5 h-5 text-amber-500" />
                 Raw Materials Used
               </CardTitle>
-              <Button type="button" variant="outline" size="sm" onClick={addMaterialItem}>
-                <Plus className="w-4 h-4 mr-1" />
-                Add Material
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={autoCalculateMaterial}
+                  className="gap-1"
+                >
+                  <Calculator className="w-4 h-4" />
+                  Auto Calculate
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={addMaterialItem}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Material
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {materialItems.map((item, index) => {
               const material = rawMaterials.find(m => m.id === item.rawMaterialId)
               return (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="space-y-1">
+                <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 bg-gray-50 rounded-lg">
+                  <div className="space-y-1 md:col-span-2">
                     <Label className="text-xs">Material</Label>
                     <Select 
                       value={item.rawMaterialId} 
@@ -313,6 +519,9 @@ export default function NewProductionPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {material && material.currentStock < parseFloat(item.quantityUsed || '0') && (
+                      <p className="text-xs text-red-500">⚠️ Insufficient stock!</p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Planned Qty</Label>
@@ -365,15 +574,27 @@ export default function NewProductionPage() {
             })}
             
             {/* Cost Summary */}
-            <div className="mt-4 p-4 bg-amber-50 rounded-lg">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="mt-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                 <div>
                   <p className="text-gray-500">Material Cost</p>
                   <p className="text-lg font-bold text-gray-900">₹{calculatedCost.materialCost.toFixed(2)}</p>
                 </div>
                 <div>
+                  <p className="text-gray-500">Labor Cost</p>
+                  <p className="text-lg font-bold text-gray-900">₹{calculatedCost.laborCost.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Overhead Cost</p>
+                  <p className="text-lg font-bold text-gray-900">₹{calculatedCost.overheadCost.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Total Cost</p>
+                  <p className="text-lg font-bold text-gray-900">₹{calculatedCost.totalCost.toFixed(2)}</p>
+                </div>
+                <div>
                   <p className="text-gray-500">Cost Per Piece</p>
-                  <p className="text-lg font-bold text-amber-600">₹{calculatedCost.costPerPiece.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-amber-600">₹{calculatedCost.costPerPiece.toFixed(2)}</p>
                 </div>
               </div>
             </div>
@@ -487,7 +708,11 @@ export default function NewProductionPage() {
             Cancel
           </Button>
           <Button type="submit" className="bg-amber-500 hover:bg-amber-600" disabled={isSubmitting}>
-            <Save className="w-4 h-4 mr-2" />
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
             {isSubmitting ? 'Saving...' : 'Save Production Entry'}
           </Button>
         </div>

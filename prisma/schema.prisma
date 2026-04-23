@@ -828,6 +828,35 @@ model PaymentTransaction {
   @@index([invoiceId])
 }
 
+// ============ COSTING TABLE ============
+
+model CostingTable {
+  id              String   @id
+  sizeWidth       Float    // Width in inches
+  sizeHeight      Float    // Height in inches
+  gsm             Float    // Grams per square meter
+  weightPerBag    Float    // Weight per bag in grams
+  bagsPerKg       Float    // Number of bags per kilogram
+  
+  // Additional calculated fields
+  areaSqm         Float?   // Area in square meters
+  materialType    String?  // Type of material (e.g., LDPE, HDPE, PP)
+  
+  // Pricing
+  costPerBag      Float?   // Cost to produce one bag
+  sellingPrice    Float?   // Selling price per bag
+  
+  isActive        Boolean  @default(true)
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([sizeWidth, sizeHeight, gsm])
+  @@index([gsm])
+  @@index([sizeWidth, sizeHeight])
+}
+
 // ============ LEGACY MATERIAL ============
 
 model Material {

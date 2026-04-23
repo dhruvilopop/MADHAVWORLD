@@ -97,6 +97,7 @@ export default function AdminLayout({
       ]
     },
     { name: 'Finished Goods', href: '/admin/finished-goods', icon: Box },
+    { name: 'Costing Table', href: '/admin/costing-table', icon: Database },
     { 
       name: 'Orders', 
       icon: ShoppingCart,
